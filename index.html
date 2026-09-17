@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#d32f2f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Manutenção de Extintores</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧯</text></svg>">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="app-header" id="appHeader">
+    <h1><span class="icon">🧯</span> Manutenção Extintores</h1>
+    <div class="header-info" id="headerInfo">
+      <div class="info-item"><span class="info-label">Cliente:</span> <span class="info-value" id="hdrEmpresa">—</span></div>
+      <div class="info-item"><span class="info-label">Data:</span> <span class="info-value" id="hdrData">—</span></div>
+      <div class="info-item"><span class="info-label">Morada:</span> <span class="info-value" id="hdrMorada">—</span></div>
+      <div class="info-item"><span class="info-label">Extintor:</span> <span class="info-value" id="hdrNum">—</span></div>
+    </div>
+  </header>
+
+  <!-- SERVICE ACTIVE BANNER -->
+  <div class="service-banner" id="serviceBanner" style="display:none">
+    <span class="banner-text" id="bannerText">Serviço em andamento</span>
+    <div class="banner-actions">
+      <button class="btn btn-sm" style="background:rgba(255,255,255,0.2);color:white" onclick="App.continueService()">Continuar</button>
+      <button class="btn btn-sm" style="background:rgba(255,255,255,0.2);color:white" onclick="App.abandonService()">Abandonar</button>
+    </div>
+  </div>
+
+  <!-- SECTION: CADASTRO -->
+  <section class="section active" id="secCadastro">
+    <!-- Service form -->
+    <div class="card" id="serviceFormCard">
+      <div class="card-title">📋 Novo Serviço</div>
+      <div class="form-group">
+        <label>Nome do Cliente / Empresa *</label>
+        <input type="text" id="svcCliente" placeholder="Nome do cliente ou empresa">
+      </div>
+      <div class="form-group">
+        <label>Morada *</label>
+        <input type="text" id="svcMorada" placeholder="Morada completa">
+      </div>
+      <div class="form-group">
+        <label>Telefone</label>
+        <input type="tel" id="svcTelefone" placeholder="912 345 678" inputmode="tel">
+      </div>
+      <div class="form-group">
+        <label>Data do Serviço</label>
+        <input type="date" id="svcData">
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-save-main btn-block" onclick="App.startService()">GUARDAR CLIENTE E INICIAR SERVIÇO</button>
+      </div>
+    </div>
+
+    <!-- Extinguisher form (hidden until service starts) -->
+    <div id="extFormWrap" style="display:none">
+      <div class="card">
+        <div class="card-title">🧯 Novo Extintor</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Número</label>
+            <input type="text" id="extNumero" inputmode="numeric" placeholder="001">
+          </div>
+          <div class="form-group">
+            <label>Marca</label>
+            <div class="autocomplete-wrap">
+              <input type="text" id="extMarca" placeholder="Marca..." autocomplete="off">
+              <div class="autocomplete-list" id="extMarcaList"></div>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Fabrico (Ano)</label>
+            <input type="number" id="extFabrico" inputmode="numeric" placeholder="2024" min="1900" max="2099">
+          </div>
+          <div class="form-group">
+            <label>Nº de Série</label>
+            <input type="text" id="extSerie" placeholder="Número de série">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Último Carregamento (Ano)</label>
+            <input type="number" id="extCarregamento" inputmode="numeric" placeholder="2026" min="1900" max="2099">
+          </div>
+          <div class="form-group">
+            <label>Localização</label>
+            <div class="autocomplete-wrap">
+              <input type="text" id="extLocalizacao" placeholder="Localização..." autocomplete="off">
+              <div class="autocomplete-list" id="extLocalizacaoList"></div>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Tipo de Extintor *</label>
+            <select id="extTipo">
+              <option value="">Selecionar...</option>
+              <option value="PO">PO (Pó químico)</option>
+              <option value="CO2">CO2 (Dióxido de carbono)</option>
+              <option value="AGUA">ÁGUA</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Peso / Capacidade</label>
+            <input type="text" id="extPeso" placeholder="Ex: 6KG, 6LTS">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Estado *</label>
+          <div class="state-selector">
+            <div class="state-option" data-state="manutencao">
+              <input type="radio" name="extEstado" id="estManut" value="manutencao">
+              <label for="estManut">Manutenção</label>
+            </div>
+            <div class="state-option" data-state="carregamento">
+              <input type="radio" name="extEstado" id="estCarga" value="carregamento">
+              <label for="estCarga">Carregamento</label>
+            </div>
+            <div class="state-option" data-state="rejeitado">
+              <input type="radio" name="extEstado" id="estRej" value="rejeitado">
+              <label for="estRej">Rejeitado</label>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Observações</label>
+          <textarea id="extObs" placeholder="Observações opcionais..." rows="2"></textarea>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-save-main btn-block" onclick="App.saveExtinguisher()">GUARDAR EXTINTOR</button>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-outline btn-block" onclick="App.duplicateExtinguisher()">📋 DUPLICAR</button>
+        </div>
+      </div>
+
+      <!-- Extinguisher list -->
+      <div class="card">
+        <div class="ext-list-header">
+          <h3>Extintores registados</h3>
+          <span class="ext-count" id="extCount">0</span>
+        </div>
+        <div id="extList"></div>
+      </div>
+
+      <!-- Finalize -->
+      <div class="btn-group" style="margin-top:8px">
+        <button class="btn btn-danger btn-block" onclick="App.finalizeService()">FINALIZAR SERVIÇO</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION: CLIENTES / HISTÓRICO -->
+  <section class="section" id="secClientes">
+    <div class="card">
+      <div class="card-title">🏢 Histórico de Clientes</div>
+      <div id="clientList"></div>
+    </div>
+
+    <!-- Detalhe do histórico -->
+    <div id="historyDetail" style="display:none">
+      <div class="card">
+        <div class="card-title">
+          <span>🔙</span>
+          <span style="cursor:pointer" onclick="App.backToHistory()">Voltar</span>
+        </div>
+        <div id="historyDetailContent"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION: PESQUISA -->
+  <section class="section" id="secPesquisa">
+    <div class="card">
+      <div class="card-title">🔍 Pesquisa</div>
+      <div class="search-bar">
+        <input type="text" id="pesqTexto" placeholder="Pesquisar número, marca, série...">
+        <button class="btn btn-primary btn-sm" onclick="App.search()">🔍</button>
+      </div>
+      <div class="filter-grid" id="filterGrid">
+        <select id="pesqCliente" onchange="App.search()">
+          <option value="">Todos os clientes</option>
+        </select>
+        <select id="pesqEstado" onchange="App.search()">
+          <option value="">Todos os estados</option>
+          <option value="manutencao">Manutenção</option>
+          <option value="carregamento">Carregamento</option>
+          <option value="rejeitado">Rejeitado</option>
+        </select>
+        <select id="pesqMarca" onchange="App.search()">
+          <option value="">Todas as marcas</option>
+        </select>
+        <select id="pesqTipo" onchange="App.search()">
+          <option value="">Todos os tipos</option>
+          <option value="PO">PO</option>
+          <option value="CO2">CO2</option>
+          <option value="AGUA">ÁGUA</option>
+        </select>
+        <select id="pesqServico" onchange="App.search()">
+          <option value="">Todos os serviços</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Data início</label>
+          <input type="date" id="pesqDataIni" onchange="App.search()">
+        </div>
+        <div class="form-group">
+          <label>Data fim</label>
+          <input type="date" id="pesqDataFim" onchange="App.search()">
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid" id="searchStats">
+      <div class="stat-card total">
+        <div class="stat-value" id="statTotal">0</div>
+        <div class="stat-label">Total</div>
+      </div>
+      <div class="stat-card manut">
+        <div class="stat-value" id="statManut">0</div>
+        <div class="stat-label">Manutenção</div>
+      </div>
+      <div class="stat-card carga">
+        <div class="stat-value" id="statCarga">0</div>
+        <div class="stat-label">Carregamento</div>
+      </div>
+      <div class="stat-card rej">
+        <div class="stat-value" id="statRej">0</div>
+        <div class="stat-label">Rejeitado</div>
+      </div>
+    </div>
+
+    <!-- Search results -->
+    <div class="card">
+      <div class="ext-list-header">
+        <h3>Resultados</h3>
+        <span class="ext-count" id="pesqCount">0</span>
+      </div>
+      <div id="pesqResults"></div>
+    </div>
+
+    <!-- Export -->
+    <div class="export-bar" id="pesqExportBar" style="display:none">
+      <button class="btn btn-primary btn-sm" onclick="App.exportPDF()">📄 PDF</button>
+      <button class="btn btn-secondary btn-sm" onclick="App.exportTXT()">📝 TXT</button>
+      <button class="btn btn-success btn-sm" onclick="App.shareWhatsApp()">💬 WhatsApp</button>
+    </div>
+  </section>
+
+  <!-- SECTION: MAIS (Backup, Config) -->
+  <section class="section" id="secMais">
+    <div class="card">
+      <div class="card-title">⚙️ Configurações</div>
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">Backup dos dados</div>
+          <div class="setting-desc">Exportar ou importar todos os dados da aplicação</div>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="App.exportBackup()">📤 Exportar Backup</button>
+        <button class="btn btn-outline" onclick="document.getElementById('backupFile').click()">📥 Importar Backup</button>
+        <input type="file" id="backupFile" accept=".json" style="display:none" onchange="App.importBackup(event)">
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">ℹ️ Sobre</div>
+      <p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5">
+        <strong>Manutenção de Extintores</strong> v1.0<br>
+        Os dados desta aplicação são armazenados localmente neste dispositivo.<br>
+        Faça backups regularmente.
+      </p>
+    </div>
+    <div class="card">
+      <div class="card-title">🗑️ Zona de Perigo</div>
+      <button class="btn btn-danger btn-block btn-sm" onclick="App.clearAllData()">Apagar Todos os Dados</button>
+    </div>
+  </section>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-section="secCadastro" onclick="App.navigate('secCadastro')">
+      <span class="nav-icon">🧯</span>Cadastro
+    </button>
+    <button class="nav-btn" data-section="secClientes" onclick="App.navigate('secClientes')">
+      <span class="nav-icon">👥</span>Clientes
+    </button>
+    <button class="nav-btn" data-section="secPesquisa" onclick="App.navigate('secPesquisa')">
+      <span class="nav-icon">🔍</span>Pesquisa
+    </button>
+    <button class="nav-btn" data-section="secMais" onclick="App.navigate('secMais')">
+      <span class="nav-icon">⚙️</span>Mais
+    </button>
+  </nav>
+
+  <!-- CONTEXT MENU -->
+  <div class="ctx-overlay" id="ctxOverlay" onclick="App.closeCtx()"></div>
+  <div class="ctx-menu" id="ctxMenu">
+    <button class="ctx-menu-item" onclick="App.ctxEdit()">✏️ Editar</button>
+    <button class="ctx-menu-item" onclick="App.ctxDuplicate()">📋 Duplicar</button>
+    <button class="ctx-menu-item danger" onclick="App.ctxDelete()">🗑️ Eliminar</button>
+  </div>
+
+  <!-- CONFIRM DIALOG -->
+  <div class="confirm-dialog" id="confirmDialog">
+    <div class="confirm-box">
+      <h3 id="confirmTitle">Confirmar</h3>
+      <p id="confirmMsg">Tem certeza?</p>
+      <div class="confirm-actions">
+        <button class="btn btn-secondary" onclick="App.confirmNo()">Cancelar</button>
+        <button class="btn btn-danger" id="confirmYes" onclick="App.confirmYes()">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FINALIZE MODAL -->
+  <div class="modal-overlay" id="finalizeModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>📋 Finalizar Serviço</h2>
+        <button class="modal-close" onclick="App.closeModal('finalizeModal')">&times;</button>
+      </div>
+      <div id="finalizeContent"></div>
+    </div>
+  </div>
+
+  <!-- VIEW EXTINTOR MODAL -->
+  <div class="modal-overlay" id="viewExtModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>🧯 Detalhe do Extintor</h2>
+        <button class="modal-close" onclick="App.closeModal('viewExtModal')">&times;</button>
+      </div>
+      <div id="viewExtContent"></div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <script src="db.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

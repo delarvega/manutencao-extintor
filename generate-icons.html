@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head><title>Gerar Ícones</title></head>
+<body>
+<h2>Gerar Ícones PWA</h2>
+<p>Clique nos botões para gerar e descarregar os ícones.</p>
+<button onclick="gen(192)">Gerar 192x192</button>
+<button onclick="gen(512)">Gerar 512x512</button>
+<script>
+function gen(size) {
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const ctx = c.getContext('2d');
+  const r = size * 0.195;
+  // Background
+  const g = ctx.createLinearGradient(0,0,size,size);
+  g.addColorStop(0,'#d32f2f'); g.addColorStop(1,'#b71c1c');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.roundRect(0,0,size,size,r); ctx.fill();
+  // Body
+  const bx=size*0.38, by=size*0.31, bw=size*0.24, bh=size*0.47;
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,size*0.04); ctx.fill();
+  // Top
+  ctx.fillStyle='#fff';
+  ctx.beginPath();
+  ctx.moveTo(bx+bw*0.3,by); ctx.lineTo(bx+bw*0.5,by-size*0.12); ctx.lineTo(bx+bw*0.7,by);
+  ctx.fill();
+  // Handle
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.roundRect(bx+bw*0.42,by-size*0.18,bw*0.16,size*0.06,size*0.01); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(bx+bw*0.35,by-size*0.22,bw*0.3,size*0.025,size*0.01); ctx.fill();
+  // Gauge
+  ctx.fillStyle='#d32f2f';
+  ctx.beginPath(); ctx.arc(bx+bw*0.5,by+bh*0.22,size*0.048,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.arc(bx+bw*0.5,by+bh*0.22,size*0.032,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#d32f2f'; ctx.lineWidth=size*0.006;
+  ctx.beginPath(); ctx.moveTo(bx+bw*0.5,by+bh*0.22);
+  ctx.lineTo(bx+bw*0.5+size*0.024,by+bh*0.22-size*0.02); ctx.stroke();
+  // Label
+  ctx.fillStyle='#d32f2f';
+  ctx.beginPath(); ctx.roundRect(bx+bw*0.04,by+bh*0.55,bw*0.92,bh*0.15,size*0.008); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font=`bold ${size*0.036}px Arial`; ctx.textAlign='center';
+  ctx.fillText('MANUT',bx+bw*0.5,by+bh*0.66);
+  // Base
+  ctx.fillStyle='rgba(255,255,255,0.8)';
+  ctx.beginPath(); ctx.roundRect(bx-bw*0.04,by+bh,bw*1.08,size*0.032,size*0.016); ctx.fill();
+  // Download
+  const a=document.createElement('a');
+  a.href=c.toDataURL('image/png');
+  a.download=`icon-${size}.png`;
+  a.click();
+}
+</script>
+</body>
+</html>
