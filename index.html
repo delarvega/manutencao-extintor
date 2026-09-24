@@ -175,6 +175,11 @@
           <span style="cursor:pointer" onclick="App.backToHistory()">Voltar</span>
         </div>
         <div id="historyDetailContent"></div>
+        <div class="export-bar" id="historyExportBar" style="display:none; margin-top:12px">
+          <button class="btn btn-primary btn-sm" onclick="App.exportPDFFromHistory()">📄 PDF</button>
+          <button class="btn btn-secondary btn-sm" onclick="App.exportTXTFromHistory()">📝 TXT</button>
+          <button class="btn btn-success btn-sm" onclick="App.shareWhatsAppFromHistory()">💬 WhatsApp</button>
+        </div>
       </div>
     </div>
   </section>

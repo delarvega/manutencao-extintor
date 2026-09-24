@@ -209,6 +209,16 @@ const App = (() => {
     if (!tipo) { toast('Selecione o tipo de extintor'); return; }
     if (!estadoEl) { toast('Selecione o estado'); return; }
 
+    // Format peso based on tipo
+    let formattedPeso = peso;
+    if (peso && !peso.endsWith('KG') && !peso.endsWith('LTS')) {
+      if (tipo === 'PO' || tipo === 'CO2') {
+        formattedPeso = peso + 'KG';
+      } else if (tipo === 'AGUA') {
+        formattedPeso = peso + 'LTS';
+      }
+    }
+
     const extData = {
       servicoId: currentService.id,
       numero,
@@ -218,7 +228,7 @@ const App = (() => {
       ultimoCarregamento: carregamento,
       localizacao: localizacao.toUpperCase(),
       tipo,
-      peso,
+      peso: formattedPeso,
       estado: estadoEl.value,
       observacoes: obs.toUpperCase()
     };
@@ -478,32 +488,36 @@ const App = (() => {
     const carga = exts.filter(e => e.estado === 'carregamento').length;
     const rej = exts.filter(e => e.estado === 'rejeitado').length;
 
-    const el = document.getElementById('historyDetailContent');
-    el.innerHTML = `
-      <p style="font-weight:700;margin-bottom:4px">${cli ? cli.nome : 'Sem cliente'}</p>
-      <p style="font-size:0.82rem;color:var(--text-secondary)">${svc.morada || cli?.morada || ''} · ${svc.data ? new Date(svc.data + 'T00:00:00').toLocaleDateString('pt-PT') : ''}</p>
-      ${cli?.telefone ? '<p style="font-size:0.82rem;color:var(--text-secondary)">Tel: ' + cli.telefone + '</p>' : ''}
-      <div class="finalize-grid" style="margin:12px 0">
-        <div class="finalize-item"><div class="fi-value">${exts.length}</div><div class="fi-label">Total</div></div>
-        <div class="finalize-item"><div class="fi-value" style="color:var(--info)">${manut}</div><div class="fi-label">Manutenção</div></div>
-        <div class="finalize-item"><div class="fi-value" style="color:#e65100">${carga}</div><div class="fi-label">Carregamento</div></div>
-        <div class="finalize-item"><div class="fi-value" style="color:var(--danger)">${rej}</div><div class="fi-label">Rejeitados</div></div>
-      </div>
-      <div style="margin-top:8px">
-        ${exts.map(e => `
-          <div class="ext-item" style="cursor:default">
-            <div class="ext-num">${e.numero}</div>
-            <div class="ext-info">
-              <div class="ext-marca">${e.marca || '—'} ${e.tipo ? '[' + e.tipo + ']' : ''} ${e.peso || ''}</div>
-              <div class="ext-detail">Série: ${e.serie || '—'} · Fabrico: ${e.dataFabrico || '—'} · Carga: ${e.ultimoCarregamento || '—'} · ${e.localizacao || '—'}</div>
-            </div>
-            <span class="ext-badge ${e.estado}">${estadoLabel(e.estado)}</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-    document.getElementById('clientList').style.display = 'none';
-    document.getElementById('historyDetail').style.display = '';
+     const el = document.getElementById('historyDetailContent');
+     el.innerHTML = `
+       <p style="font-weight:700;margin-bottom:4px">${cli ? cli.nome : 'Sem cliente'}</p>
+       <p style="font-size:0.82rem;color:var(--text-secondary)">${svc.morada || cli?.morada || ''} · ${svc.data ? new Date(svc.data + 'T00:00:00').toLocaleDateString('pt-PT') : ''}</p>
+       ${cli?.telefone ? '<p style="font-size:0.82rem;color:var(--text-secondary)">Tel: ' + cli.telefone + '</p>' : ''}
+       <div class="finalize-grid" style="margin:12px 0">
+         <div class="finalize-item"><div class="fi-value">${exts.length}</div><div class="fi-label">Total</div></div>
+         <div class="finalize-item"><div class="fi-value" style="color:var(--info)">${manut}</div><div class="fi-label">Manutenção</div></div>
+         <div class="finalize-item"><div class="fi-value" style="color:#e65100">${carga}</div><div class="fi-label">Carregamento</div></div>
+         <div class="finalize-item"><div class="fi-value" style="color:var(--danger)">${rej}</div><div class="fi-label">Rejeitados</div></div>
+       </div>
+       <div style="margin-top:8px">
+         ${exts.map(e => `
+           <div class="ext-item" onclick="App.editExtFromHistory(${e.id})">
+             <div class="ext-num">${e.numero}</div>
+             <div class="ext-info">
+               <div class="ext-marca">${e.marca || '—'} ${e.tipo ? '[' + e.tipo + ']' : ''} ${e.peso || ''}</div>
+               <div class="ext-detail">Série: ${e.serie || '—'} · Fabrico: ${e.dataFabrico || '—'} · Carga: ${e.ultimoCarregamento || '—'} · ${e.localizacao || '—'}</div>
+             </div>
+             <span class="ext-badge ${e.estado}">${estadoLabel(e.estado)}</span>
+           </div>
+         `).join('')}
+       </div>
+     `;
+     // Set dataset for editExtFromHistory to work
+     el.dataset.svcId = svcId;
+     // Show export buttons if there are extintores
+     document.getElementById('historyExportBar').style.display = exts.length > 0 ? '' : 'none';
+     document.getElementById('clientList').style.display = 'none';
+     document.getElementById('historyDetail').style.display = '';
   }
 
   function backToHistory() {
@@ -534,15 +548,21 @@ const App = (() => {
       marcas.map(m => `<option value="${m}">${m}</option>`).join('');
   }
 
-  async function search() {
-    const texto = document.getElementById('pesqTexto').value.toLowerCase();
-    const clienteId = document.getElementById('pesqCliente').value;
-    const estado = document.getElementById('pesqEstado').value;
-    const marca = document.getElementById('pesqMarca').value;
-    const tipo = document.getElementById('pesqTipo').value;
-    const servicoId = document.getElementById('pesqServico').value;
-    const dataIni = document.getElementById('pesqDataIni').value;
-    const dataFim = document.getElementById('pesqDataFim').value;
+   async function search() {
+     // Require client selection before searching
+     const clienteId = document.getElementById('pesqCliente').value;
+     if (!clienteId) {
+       toast('Selecione um cliente antes de pesquisar');
+       return;
+     }
+     
+     const texto = document.getElementById('pesqTexto').value.toLowerCase();
+     const estado = document.getElementById('pesqEstado').value;
+     const marca = document.getElementById('pesqMarca').value;
+     const tipo = document.getElementById('pesqTipo').value;
+     const servicoId = document.getElementById('pesqServico').value;
+     const dataIni = document.getElementById('pesqDataIni').value;
+     const dataFim = document.getElementById('pesqDataFim').value;
 
     let exts = await DB.getAll('extintores');
     const servicos = await DB.getAll('servicos');
@@ -752,6 +772,111 @@ const App = (() => {
     window.open(url, '_blank');
   }
 
+  // === EXPORT FROM HISTORY ===
+  async function exportPDFFromHistory() {
+    // Temporarily set last search results to the history detail data
+    const svcId = document.getElementById('historyDetailContent').dataset.svcId;
+    if (!svcId) return;
+    
+    const svc = await DB.get('servicos', parseInt(svcId));
+    if (!svc) return;
+    
+    const exts = await DB.getAllByIndex('extintores', 'servicoId', svcId);
+    const cli = svc.clienteId ? await DB.get('clientes', svc.clienteId) : null;
+    
+    // Set temporary search results for exportPDF to use
+    window._lastSearchResults = exts;
+    window._lastSearchServicos = [svc];
+    window._lastSearchClientes = cli ? [cli] : [];
+    
+    await exportPDF();
+    
+    // Clean up temporary data
+    window._lastSearchResults = null;
+    window._lastSearchServicos = null;
+    window._lastSearchClientes = null;
+  }
+
+  async function exportTXTFromHistory() {
+    // Temporarily set last search results to the history detail data
+    const svcId = document.getElementById('historyDetailContent').dataset.svcId;
+    if (!svcId) return;
+    
+    const svc = await DB.get('servicos', parseInt(svcId));
+    if (!svc) return;
+    
+    const exts = await DB.getAllByIndex('extintores', 'servicoId', svcId);
+    const cli = svc.clienteId ? await DB.get('clientes', svc.clienteId) : null;
+    
+    // Set temporary search results for exportTXT to use
+    window._lastSearchResults = exts;
+    window._lastSearchServicos = [svc];
+    window._lastSearchClientes = cli ? [cli] : [];
+    
+    await exportTXT();
+    
+    // Clean up temporary data
+    window._lastSearchResults = null;
+    window._lastSearchServicos = null;
+    window._lastSearchClientes = null;
+  }
+
+   async function shareWhatsAppFromHistory() {
+     // Temporarily set last search results to the history detail data
+     const svcId = document.getElementById('historyDetailContent').dataset.svcId;
+     if (!svcId) return;
+     
+     const svc = await DB.get('servicos', parseInt(svcId));
+     if (!svc) return;
+     
+     const exts = await DB.getAllByIndex('extintores', 'servicoId', svcId);
+     const cli = svc.clienteId ? await DB.get('clientes', svc.clienteId) : null;
+     
+     // Set temporary search results for shareWhatsApp to use
+     window._lastSearchResults = exts;
+     window._lastSearchServicos = [svc];
+     window._lastSearchClientes = cli ? [cli] : [];
+     
+     await shareWhatsApp();
+     
+     // Clean up temporary data
+     window._lastSearchResults = null;
+     window._lastSearchServicos = null;
+     window._lastSearchClientes = null;
+   }
+
+   async function editExtFromHistory(extId) {
+     // Get the extintor from database
+     const ext = await DB.get('extintores', extId);
+     if (!ext) {
+       toast('Extintor não encontrado');
+       return;
+     }
+     
+     // Set editing flag and populate form
+     editingExtId = ext.id;
+     
+     // Populate form fields
+     document.getElementById('extNumero').value = ext.numero;
+     document.getElementById('extMarca').value = ext.marca || '';
+     document.getElementById('extFabrico').value = ext.dataFabrico || '';
+     document.getElementById('extSerie').value = ext.serie || '';
+     document.getElementById('extCarregamento').value = ext.ultimoCarregamento || '';
+     document.getElementById('extLocalizacao').value = ext.localizacao || '';
+     document.getElementById('extTipo').value = ext.tipo || '';
+     document.getElementById('extPeso').value = ext.peso || '';
+     document.getElementById('extObs').value = ext.observacoes || '';
+     const radio = document.querySelector(`input[name="extEstado"][value="${ext.estado}"]`);
+     if (radio) radio.checked = true;
+     
+     // Switch to cadastro section and show form
+     navigate('secCadastro');
+     showExtForm();
+     window.scrollTo({ top: 0, behavior: 'smooth' });
+     
+     toast('Editando extintor do histórico');
+   }
+
   // === BACKUP ===
   async function exportBackup() {
     const data = await DB.exportAll();
@@ -843,6 +968,8 @@ const App = (() => {
     search, exportPDF, exportTXT, shareWhatsApp, exportBackup, importBackup,
     clearAllData, confirmYes, confirmNo, closeModal,
     continueService, abandonService, selectAutocomplete,
-    showHistoryDetail, backToHistory
+    showHistoryDetail, backToHistory,
+    exportPDFFromHistory, exportTXTFromHistory, shareWhatsAppFromHistory,
+    editExtFromHistory
   };
 })();
