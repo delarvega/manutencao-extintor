@@ -28,6 +28,52 @@ const App = (() => {
 
     setupAutocomplete('extMarca', 'marcas');
     setupAutocomplete('extLocalizacao', 'localizacoes');
+    setupNumberInput('extNumero');
+    setupYearInput('extFabrico');
+    setupYearInput('extCarregamento');
+  }
+
+  // === NUMBER / YEAR INPUT HELPERS ===
+  function setupNumberInput(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      const start = el.selectionStart;
+      const cleaned = el.value.replace(/\s+/g, '');
+      if (cleaned !== el.value) {
+        el.value = cleaned;
+        if (start !== null) el.setSelectionRange(Math.max(0, start - 1), Math.max(0, start - 1));
+      }
+    });
+    el.addEventListener('blur', () => { el.value = el.value.trim().replace(/\s+/g, ''); });
+  }
+
+  function expandYear(value) {
+    const v = String(value == null ? '' : value).trim().replace(/\s+/g, '');
+    if (!/^\d{1,2}$/.test(v)) return v;
+    const n = parseInt(v, 10);
+    return String(n <= 50 ? 2000 + n : 1900 + n);
+  }
+
+  function setupYearInput(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    let timer = null;
+    const apply = () => {
+      const v = expandYear(el.value);
+      if (v !== el.value) el.value = v;
+    };
+    el.addEventListener('input', () => {
+      el.value = el.value.replace(/\D/g, '').slice(0, 4);
+      clearTimeout(timer);
+      if (el.value.length === 2) timer = setTimeout(apply, 900);
+    });
+    el.addEventListener('blur', () => { clearTimeout(timer); apply(); });
+  }
+
+  function nextExtNumber() {
+    const nums = extintores.map(e => parseInt(String(e.numero).replace(/\D/g, ''), 10) || 0);
+    return String(nums.length ? Math.max(...nums) + 1 : 1);
   }
 
   function setDataToday() {
@@ -182,23 +228,23 @@ const App = (() => {
     document.getElementById('hdrEmpresa').textContent = cliente ? cliente.nome : 'Sem cliente';
     document.getElementById('hdrMorada').textContent = currentService.morada || cliente?.morada || '—';
     document.getElementById('hdrData').textContent = currentService.data ? new Date(currentService.data + 'T00:00:00').toLocaleDateString('pt-PT') : '—';
-    document.getElementById('hdrNum').textContent = String(extintores.length + 1).padStart(3, '0');
+    document.getElementById('hdrNum').textContent = nextExtNumber();
   }
 
   function showExtForm() {
     document.getElementById('extFormWrap').style.display = '';
     document.getElementById('serviceFormCard').style.display = 'none';
-    document.getElementById('extNumero').value = String(extintores.length + 1).padStart(3, '0');
+    if (!editingExtId) document.getElementById('extNumero').value = nextExtNumber();
   }
 
   // === EXTINGUISHERS ===
   async function saveExtinguisher() {
     if (!currentService) { toast('Inicie um serviço primeiro'); return; }
-    const numero = document.getElementById('extNumero').value.trim();
+    const numero = document.getElementById('extNumero').value.trim().replace(/\s+/g, '');
     const marca = document.getElementById('extMarca').value.trim();
-    const fabrico = document.getElementById('extFabrico').value.trim();
+    const fabrico = expandYear(document.getElementById('extFabrico').value);
     const serie = document.getElementById('extSerie').value.trim();
-    const carregamento = document.getElementById('extCarregamento').value.trim();
+    const carregamento = expandYear(document.getElementById('extCarregamento').value);
     const localizacao = document.getElementById('extLocalizacao').value.trim();
     const tipo = document.getElementById('extTipo').value;
     const peso = document.getElementById('extPeso').value.trim().toUpperCase();
@@ -267,16 +313,13 @@ const App = (() => {
     document.getElementById('extPeso').value = '';
     document.getElementById('extObs').value = '';
     document.querySelectorAll('input[name="extEstado"]').forEach(r => r.checked = false);
-    const nextNum = extintores.length > 0
-      ? Math.max(...extintores.map(e => parseInt(e.numero) || 0)) + 1
-      : 1;
-    document.getElementById('extNumero').value = String(nextNum).padStart(3, '0');
+    document.getElementById('extNumero').value = nextExtNumber();
     editingExtId = null;
   }
 
   function duplicateExtinguisher() {
     const estado = document.querySelector('input[name="extEstado"]:checked');
-    document.getElementById('extNumero').value = String(extintores.length + 1).padStart(3, '0');
+    document.getElementById('extNumero').value = nextExtNumber();
     document.getElementById('extSerie').value = '';
     if (estado) estado.checked = false;
     toast('Campos copiados. Verifique antes de guardar.');
@@ -356,7 +399,7 @@ const App = (() => {
     document.getElementById('extObs').value = '';
     const radio = document.querySelector(`input[name="extEstado"][value="${ext.estado}"]`);
     if (radio) radio.checked = true;
-    document.getElementById('extNumero').value = String(extintores.length + 1).padStart(3, '0');
+    document.getElementById('extNumero').value = nextExtNumber();
     editingExtId = null;
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast('Dados copiados. Verifique antes de guardar.');
