@@ -671,29 +671,63 @@ const App = (() => {
     window._lastSearchClientes = clientes;
   }
 
+  // === EXPORT HELPERS ===
+  function openReportWindow() {
+    try { return window.open('about:blank', '_blank'); } catch (e) { return null; }
+  }
+
+  async function setHistoryExportData() {
+    const svcId = parseInt(document.getElementById('historyDetailContent').dataset.svcId, 10);
+    if (!svcId) return false;
+    const svc = await DB.get('servicos', svcId);
+    if (!svc) return false;
+    const exts = await DB.getAllByIndex('extintores', 'servicoId', svcId);
+    const cli = svc.clienteId ? await DB.get('clientes', svc.clienteId) : null;
+    window._lastSearchResults = exts;
+    window._lastSearchServicos = [svc];
+    window._lastSearchClientes = cli ? [cli] : [];
+    return true;
+  }
+
+  function clearHistoryExportData() {
+    window._lastSearchResults = null;
+    window._lastSearchServicos = null;
+    window._lastSearchClientes = null;
+  }
+
   // === PDF EXPORT ===
-  async function exportPDF() {
+  async function exportPDF(preOpened) {
+    const win = preOpened || openReportWindow();
     const data = await getExportData();
-    if (!data) return;
-    const win = window.open('', '_blank');
-    win.document.write(`<!DOCTYPE html><html><head><title>Relatório - ${data.cliente}</title>
+    if (!data) { if (win) win.close(); return; }
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Relatório - ${data.cliente}</title>
       <style>
         body{font-family:Arial,sans-serif;padding:20px;color:#333;font-size:12px}
         h1{font-size:18px;color:#d32f2f;margin-bottom:4px}
         h2{font-size:14px;color:#666;margin:0 0 16px}
         .info{margin-bottom:16px;font-size:12px;line-height:1.6}
         .info strong{display:inline-block;width:100px}
-        .stats{display:flex;gap:20px;margin:16px 0}
+        .stats{display:flex;flex-wrap:wrap;gap:20px;margin:16px 0}
         .stat{text-align:center;padding:8px 16px;border:1px solid #ddd;border-radius:6px}
         .stat .num{font-size:24px;font-weight:800}
         .stat .lbl{font-size:10px;color:#666;text-transform:uppercase}
+        .table-wrap{overflow-x:auto}
         table{width:100%;border-collapse:collapse;margin-top:12px}
         th{background:#d32f2f;color:white;padding:6px 8px;text-align:left;font-size:11px}
         td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}
         tr:nth-child(even){background:#f9f9f9}
         .footer{margin-top:20px;font-size:10px;color:#999;text-align:center}
-        @media print{body{padding:10px}}
+        .actions{display:flex;gap:10px;margin:0 0 16px}
+        .actions button{flex:1;padding:12px;border:none;border-radius:8px;background:#d32f2f;color:#fff;font-size:14px;font-weight:700}
+        .actions button.secondary{background:#e0e0e0;color:#333}
+        @media print{body{padding:10px}.actions{display:none}}
       </style></head><body>
+      <div class="actions">
+        <button onclick="window.print()">Imprimir / Guardar PDF</button>
+        <button class="secondary" onclick="window.close()">Fechar</button>
+      </div>
       <h1>MANUTENCAO DE EXTINTORES</h1>
       <h2>Relatorio de Servico</h2>
       <div class="info">
@@ -709,18 +743,29 @@ const App = (() => {
         <div class="stat"><div class="num" style="color:#e65100">${data.carga}</div><div class="lbl">Carregamento</div></div>
         <div class="stat"><div class="num" style="color:#c62828">${data.rej}</div><div class="lbl">Rejeitados</div></div>
       </div>
-      <table>
-        <tr><th>No</th><th>Marca</th><th>Tipo</th><th>Peso</th><th>Fabrico</th><th>Serie</th><th>Ult. Carga</th><th>Localizacao</th><th>Estado</th><th>Obs.</th></tr>
-        ${data.extintores.map(e => `<tr>
-          <td>${e.numero}</td><td>${e.marca||''}</td><td>${e.tipo||''}</td><td>${e.peso||''}</td><td>${e.dataFabrico||''}</td>
-          <td>${e.serie||''}</td><td>${e.ultimoCarregamento||''}</td><td>${e.localizacao||''}</td>
-          <td>${estadoLabel(e.estado)}</td><td>${e.observacoes||''}</td>
-        </tr>`).join('')}
-      </table>
+      <div class="table-wrap">
+        <table>
+          <tr><th>No</th><th>Marca</th><th>Tipo</th><th>Peso</th><th>Fabrico</th><th>Serie</th><th>Ult. Carga</th><th>Localizacao</th><th>Estado</th><th>Obs.</th></tr>
+          ${data.extintores.map(e => `<tr>
+            <td>${e.numero}</td><td>${e.marca||''}</td><td>${e.tipo||''}</td><td>${e.peso||''}</td><td>${e.dataFabrico||''}</td>
+            <td>${e.serie||''}</td><td>${e.ultimoCarregamento||''}</td><td>${e.localizacao||''}</td>
+            <td>${estadoLabel(e.estado)}</td><td>${e.observacoes||''}</td>
+          </tr>`).join('')}
+        </table>
+      </div>
       <div class="footer">Gerado em ${new Date().toLocaleString('pt-PT')} — Manutencao de Extintores</div>
-      <script>window.onload=function(){window.print()}<\/script>
-    </body></html>`);
-    win.document.close();
+      <script>window.onload=function(){setTimeout(function(){try{window.print()}catch(e){}},500)}<\/script>
+    </body></html>`;
+    if (win) {
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    } else {
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const w = window.open(url, '_blank');
+      if (!w) window.location.href = url;
+    }
   }
 
   // === TXT EXPORT ===
@@ -754,12 +799,26 @@ const App = (() => {
       txt += '\n';
     });
     txt += `\nGerado em ${new Date().toLocaleString('pt-PT')}\n`;
+    const fileName = `servico_${data.cliente.replace(/[^\w\-]+/g, '_')}_${data.data}.txt`;
     const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+    try {
+      const file = new File([blob], fileName, { type: 'text/plain' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Relatorio de Extintores' });
+        toast('Relatório partilhado');
+        return;
+      }
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `servico_${data.cliente.replace(/\s+/g, '_')}_${data.data}.txt`;
+    a.download = fileName;
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(a.href);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     toast('TXT guardado');
   }
 
@@ -796,9 +855,10 @@ const App = (() => {
   }
 
   // === SHARE WHATSAPP ===
-  async function shareWhatsApp() {
+  async function shareWhatsApp(preOpened) {
+    const win = preOpened || openReportWindow();
     const data = await getExportData();
-    if (!data) return;
+    if (!data) { if (win) win.close(); return; }
     let msg = `MANUTENCAO DE EXTINTORES\n\n`;
     msg += `*${data.cliente}*\n`;
     msg += `${data.morada}\n`;
@@ -812,81 +872,33 @@ const App = (() => {
       msg += `${e.numero} — ${e.marca || '—'} ${e.tipo ? '[' + e.tipo + ']' : ''} ${e.peso || ''} — ${e.localizacao || '—'} — ${estadoLabel(e.estado)}\n`;
     });
     const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    window.open(url, '_blank');
+    if (win) {
+      win.location.href = url;
+    } else {
+      window.location.href = url;
+    }
   }
 
   // === EXPORT FROM HISTORY ===
   async function exportPDFFromHistory() {
-    // Temporarily set last search results to the history detail data
-    const svcId = document.getElementById('historyDetailContent').dataset.svcId;
-    if (!svcId) return;
-    
-    const svc = await DB.get('servicos', parseInt(svcId));
-    if (!svc) return;
-    
-    const exts = await DB.getAllByIndex('extintores', 'servicoId', svcId);
-    const cli = svc.clienteId ? await DB.get('clientes', svc.clienteId) : null;
-    
-    // Set temporary search results for exportPDF to use
-    window._lastSearchResults = exts;
-    window._lastSearchServicos = [svc];
-    window._lastSearchClientes = cli ? [cli] : [];
-    
-    await exportPDF();
-    
-    // Clean up temporary data
-    window._lastSearchResults = null;
-    window._lastSearchServicos = null;
-    window._lastSearchClientes = null;
+    const win = openReportWindow();
+    if (!await setHistoryExportData()) { if (win) win.close(); return; }
+    await exportPDF(win);
+    clearHistoryExportData();
   }
 
   async function exportTXTFromHistory() {
-    // Temporarily set last search results to the history detail data
-    const svcId = document.getElementById('historyDetailContent').dataset.svcId;
-    if (!svcId) return;
-    
-    const svc = await DB.get('servicos', parseInt(svcId));
-    if (!svc) return;
-    
-    const exts = await DB.getAllByIndex('extintores', 'servicoId', svcId);
-    const cli = svc.clienteId ? await DB.get('clientes', svc.clienteId) : null;
-    
-    // Set temporary search results for exportTXT to use
-    window._lastSearchResults = exts;
-    window._lastSearchServicos = [svc];
-    window._lastSearchClientes = cli ? [cli] : [];
-    
+    if (!await setHistoryExportData()) return;
     await exportTXT();
-    
-    // Clean up temporary data
-    window._lastSearchResults = null;
-    window._lastSearchServicos = null;
-    window._lastSearchClientes = null;
+    clearHistoryExportData();
   }
 
-   async function shareWhatsAppFromHistory() {
-     // Temporarily set last search results to the history detail data
-     const svcId = document.getElementById('historyDetailContent').dataset.svcId;
-     if (!svcId) return;
-     
-     const svc = await DB.get('servicos', parseInt(svcId));
-     if (!svc) return;
-     
-     const exts = await DB.getAllByIndex('extintores', 'servicoId', svcId);
-     const cli = svc.clienteId ? await DB.get('clientes', svc.clienteId) : null;
-     
-     // Set temporary search results for shareWhatsApp to use
-     window._lastSearchResults = exts;
-     window._lastSearchServicos = [svc];
-     window._lastSearchClientes = cli ? [cli] : [];
-     
-     await shareWhatsApp();
-     
-     // Clean up temporary data
-     window._lastSearchResults = null;
-     window._lastSearchServicos = null;
-     window._lastSearchClientes = null;
-   }
+  async function shareWhatsAppFromHistory() {
+    const win = openReportWindow();
+    if (!await setHistoryExportData()) { if (win) win.close(); return; }
+    await shareWhatsApp(win);
+    clearHistoryExportData();
+  }
 
    async function editExtFromHistory(extId) {
      // Get the extintor from database
@@ -998,7 +1010,13 @@ const App = (() => {
 
   // === SERVICE WORKER ===
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
+    navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' }).catch(() => {});
   }
 
   // === INIT ===

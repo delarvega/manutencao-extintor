@@ -1,4 +1,4 @@
-const CACHE_NAME = 'manutext-v2';
+const CACHE_NAME = 'manutext-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -26,13 +26,32 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+
+  if (req.mode === 'navigate') {
+    e.respondWith(
+      fetch(req).then(resp => {
+        if (resp && resp.status === 200) {
+          const clone = resp.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
+        }
+        return resp;
+      }).catch(() => caches.match(req).then(r => r || caches.match('./index.html')))
+    );
+    return;
+  }
+
   e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request).then(resp => {
-      if (resp.status === 200 && e.request.method === 'GET') {
-        const clone = resp.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
-      }
-      return resp;
-    }).catch(() => caches.match('./index.html')))
+    caches.match(req).then(cached => {
+      const network = fetch(req).then(resp => {
+        if (resp && resp.status === 200) {
+          const clone = resp.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
+        }
+        return resp;
+      }).catch(() => cached);
+      return cached || network;
+    })
   );
 });
