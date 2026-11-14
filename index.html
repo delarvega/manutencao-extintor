@@ -153,6 +153,18 @@
         <div id="extList"></div>
       </div>
 
+      <!-- Budget / client survey -->
+      <div class="card">
+        <div class="card-title">📝 Orçamento — Levantamento no Cliente</div>
+        <div class="form-group">
+          <label>Novos serviços e produtos necessários</label>
+          <textarea id="svcOrcamento" rows="4" placeholder="Ex: 2 extintores CO2 5kg, 1 extintor P6, sinalização, formação..."></textarea>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary btn-block" onclick="App.saveOrcamento()">GUARDAR ORÇAMENTO</button>
+        </div>
+      </div>
+
       <!-- Finalize -->
       <div class="btn-group" style="margin-top:8px">
         <button class="btn btn-danger btn-block" onclick="App.finalizeService()">FINALIZAR SERVIÇO</button>

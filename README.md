@@ -20,7 +20,8 @@ Aplicacao profissional PWA para manutencao de extintores de incendio. Funciona o
 | **Pesquisa** | Filtros avancados e estatisticas dinamicas |
 | **Historico** | Consulta de todos os servicos anteriores |
 | **PDF** | Relatorio profissional para impressao |
-| **Assinaturas** | Assinatura digital do tecnico e do cliente no telemovel, impressa na ultima pagina do PDF |
+| **Assinaturas** | Assinatura digital do tecnico e do cliente no telemovel, impressa no rodape de cada pagina do PDF |
+| **Orcamento** | Levantamento de novos servicos e produtos no cliente, incluido no PDF |
 | **TXT** | Exportacao em texto simples |
 | **WhatsApp** | Partilha direta de relatorios |
 | **Backup** | Exportar/importar todos os dados |

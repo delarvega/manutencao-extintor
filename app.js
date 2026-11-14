@@ -36,6 +36,9 @@ const App = (() => {
     setupNumberInput('extNumero');
     setupYearInput('extFabrico');
     setupYearInput('extCarregamento');
+
+    const orcEl = document.getElementById('svcOrcamento');
+    if (orcEl) orcEl.addEventListener('change', () => saveOrcamento(true));
   }
 
   // === NUMBER / YEAR INPUT HELPERS ===
@@ -167,7 +170,7 @@ const App = (() => {
 
     const clienteId = await DB.add('clientes', { nome: nome.toUpperCase(), morada: morada.toUpperCase(), telefone });
 
-    const servico = { clienteId, data, morada: morada.toUpperCase(), telefone, status: 'em_andamento', extCount: 0 };
+    const servico = { clienteId, data, morada: morada.toUpperCase(), telefone, status: 'em_andamento', extCount: 0, orcamento: '' };
     const id = await DB.add('servicos', servico);
     servico.id = id;
     currentService = servico;
@@ -241,7 +244,19 @@ const App = (() => {
   function showExtForm() {
     document.getElementById('extFormWrap').style.display = '';
     document.getElementById('serviceFormCard').style.display = 'none';
+    document.getElementById('svcOrcamento').value = currentService?.orcamento || '';
     if (!editingExtId) document.getElementById('extNumero').value = nextExtNumber();
+  }
+
+  async function saveOrcamento(silent) {
+    if (!currentService) {
+      if (!silent) toast('Inicie um serviço primeiro');
+      return;
+    }
+    currentService.orcamento = document.getElementById('svcOrcamento').value.trim();
+    await DB.put('servicos', currentService);
+    await DB.setConfig('currentService', currentService);
+    if (!silent) toast('Orçamento guardado');
   }
 
   // === EXTINGUISHERS ===
@@ -561,6 +576,10 @@ const App = (() => {
   // === FINALIZE SERVICE ===
   async function finalizeService() {
     if (!currentService || extintores.length === 0) { toast('Sem extintores para finalizar'); return; }
+    const orcEl = document.getElementById('svcOrcamento');
+    if (orcEl) currentService.orcamento = orcEl.value.trim();
+    await DB.put('servicos', currentService);
+    await DB.setConfig('currentService', currentService);
     let cliente = null;
     if (currentService.clienteId) cliente = await DB.get('clientes', currentService.clienteId);
     const manut = extintores.filter(e => e.estado === 'manutencao').length;
@@ -846,10 +865,7 @@ const App = (() => {
     const win = preOpened || openReportWindow();
     const data = await getExportData();
     if (!data) { if (win) win.close(); return; }
-    const sigPage = (data.assinaturaTecnico || data.assinaturaCliente) ? `
-      <div class="sign-page">
-        <div class="sign-page-title">ASSINATURAS</div>
-        <div class="sign-page-sub">Declaro que o servico descrito neste relatorio foi executado e aceite.</div>
+    const signBlock = `
         <div class="sign-area">
           <div class="sign-box">
             ${data.assinaturaTecnico ? `<img src="${data.assinaturaTecnico}" alt="Assinatura do Tecnico">` : '<div class="sign-space"></div>'}
@@ -861,8 +877,8 @@ const App = (() => {
             <div class="sign-line"></div>
             <div class="sign-label">Assinatura do Cliente</div>
           </div>
-        </div>
-      </div>` : '';
+        </div>`;
+    const orcamento = (data.orcamento || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <title>Relatório - ${data.cliente}</title>
@@ -885,21 +901,26 @@ const App = (() => {
         .actions{display:flex;gap:10px;margin:0 0 16px}
         .actions button{flex:1;padding:12px;border:none;border-radius:8px;background:#d32f2f;color:#fff;font-size:14px;font-weight:700}
         .actions button.secondary{background:#e0e0e0;color:#333}
-        .sign-page{page-break-before:always;break-before:page;min-height:245mm;display:flex;flex-direction:column;padding-top:10px}
-        .sign-page-title{font-size:14px;color:#d32f2f;font-weight:700;margin-bottom:2px}
-        .sign-page-sub{font-size:11px;color:#666}
-        .sign-area{margin-top:auto;display:flex;justify-content:flex-end;align-items:flex-end;gap:16px;padding-bottom:6mm}
+        .page-table{width:100%;border-collapse:collapse;margin-top:0}
+        .page-table>tbody>tr>td,.page-table>tfoot>tr>td{padding:0;vertical-align:top;border-bottom:none;font-size:12px}
+        .sign-area{display:flex;justify-content:flex-end;align-items:flex-end;gap:16px;padding-top:8mm}
         .sign-box{width:62mm;text-align:center}
-        .sign-box img{display:block;max-width:100%;max-height:30mm;margin:0 auto}
-        .sign-space{height:30mm}
+        .sign-box img{display:block;max-width:100%;max-height:24mm;margin:0 auto}
+        .sign-space{height:24mm}
         .sign-line{border-top:1px solid #333;margin-top:2px}
         .sign-label{font-size:10px;margin-top:4px;color:#333}
+        .orcamento{margin-top:16px;border:1px solid #ddd;border-radius:6px;padding:8px 10px}
+        .orc-title{font-size:11px;font-weight:700;color:#d32f2f;text-transform:uppercase}
+        .orc-sub{font-size:10px;color:#666;margin-bottom:4px}
+        .orc-body{font-size:11px;line-height:1.5;white-space:pre-wrap;min-height:14mm}
         @media print{body{padding:10px}.actions{display:none}}
       </style></head><body>
       <div class="actions">
         <button onclick="window.print()">Imprimir / Guardar PDF</button>
         <button class="secondary" onclick="window.close()">Fechar</button>
       </div>
+      <table class="page-table">
+        <tbody><tr><td>
       <h1>MANUTENCAO DE EXTINTORES</h1>
       <h2>Relatorio de Servico</h2>
       <div class="info">
@@ -925,8 +946,17 @@ const App = (() => {
           </tr>`).join('')}
         </table>
       </div>
+      <div class="orcamento">
+        <div class="orc-title">Orcamento — Novos Servicos e Produtos</div>
+        <div class="orc-sub">Levantamento efetuado no cliente</div>
+        <div class="orc-body">${orcamento || '—'}</div>
+      </div>
       <div class="footer">Gerado em ${new Date().toLocaleString('pt-PT')} — Manutencao de Extintores</div>
-      ${sigPage}
+        </td></tr></tbody>
+        <tfoot><tr><td>
+          ${signBlock}
+        </td></tr></tfoot>
+      </table>
       <script>window.onload=function(){setTimeout(function(){try{window.print()}catch(e){}},500)}<\/script>
     </body></html>`;
     if (win) {
@@ -1025,6 +1055,7 @@ const App = (() => {
       rej: exts.filter(e => e.estado === 'rejeitado').length,
       assinaturaTecnico: svc?.assinaturaTecnico || null,
       assinaturaCliente: svc?.assinaturaCliente || null,
+      orcamento: svc?.orcamento || '',
       extintores: exts
     };
   }
@@ -1205,7 +1236,7 @@ const App = (() => {
     search, exportPDF, exportTXT, shareWhatsApp, exportBackup, importBackup,
     clearAllData, confirmYes, confirmNo, closeModal,
     continueService, abandonService, selectAutocomplete,
-    openSignatureModal, clearSignature, saveSignatures,
+    openSignatureModal, clearSignature, saveSignatures, saveOrcamento,
     showHistoryDetail, backToHistory,
     exportPDFFromHistory, exportTXTFromHistory, shareWhatsAppFromHistory,
     editExtFromHistory
