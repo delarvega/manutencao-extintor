@@ -352,6 +352,30 @@
     </div>
   </div>
 
+  <!-- SIGNATURE MODAL -->
+  <div class="modal-overlay" id="signatureModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>✍️ Assinaturas</h2>
+        <button class="modal-close" onclick="App.closeModal('signatureModal')">&times;</button>
+      </div>
+      <p class="sign-hint">Assine com o dedo no ecrã. As assinaturas serão impressas na parte inferior direita da última página do PDF.</p>
+      <div class="sign-pad-wrap">
+        <div class="sign-pad-title">Assinatura do Técnico</div>
+        <canvas class="sign-pad" id="sigPadTecnico"></canvas>
+        <button class="btn btn-outline btn-sm" onclick="App.clearSignature('tecnico')">Limpar</button>
+      </div>
+      <div class="sign-pad-wrap">
+        <div class="sign-pad-title">Assinatura do Cliente</div>
+        <canvas class="sign-pad" id="sigPadCliente"></canvas>
+        <button class="btn btn-outline btn-sm" onclick="App.clearSignature('cliente')">Limpar</button>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-save-main btn-block" onclick="App.saveSignatures()">GUARDAR ASSINATURAS</button>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST -->
   <div class="toast" id="toast"></div>
 

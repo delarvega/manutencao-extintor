@@ -4,6 +4,7 @@ const App = (() => {
   let editingExtId = null;
   let ctxExtId = null;
   let confirmCb = null;
+  let signatures = { tecnico: null, cliente: null };
 
   function init() {
     DB.open().then(async () => {
@@ -11,6 +12,10 @@ const App = (() => {
       const saved = await DB.getConfig('currentService');
       if (saved) {
         currentService = saved;
+        signatures = {
+          tecnico: currentService.assinaturaTecnico || null,
+          cliente: currentService.assinaturaCliente || null
+        };
         extintores = await DB.getAllByIndex('extintores', 'servicoId', currentService.id);
         showServiceBanner();
         showExtForm();
@@ -168,6 +173,7 @@ const App = (() => {
     currentService = servico;
     await DB.setConfig('currentService', currentService);
     extintores = [];
+    signatures = { tecnico: null, cliente: null };
 
     document.getElementById('svcCliente').value = '';
     document.getElementById('svcMorada').value = '';
@@ -206,6 +212,7 @@ const App = (() => {
       }
       currentService = null;
       extintores = [];
+      signatures = { tecnico: null, cliente: null };
       await DB.setConfig('currentService', null);
       hideServiceBanner();
       document.getElementById('extFormWrap').style.display = 'none';
@@ -419,6 +426,138 @@ const App = (() => {
     });
   }
 
+  // === DIGITAL SIGNATURES ===
+  const sigPads = {
+    tecnico: { canvas: null, ctx: null, drawing: false, hasInk: false, lastX: 0, lastY: 0 },
+    cliente: { canvas: null, ctx: null, drawing: false, hasInk: false, lastX: 0, lastY: 0 }
+  };
+
+  function openSignatureModal() {
+    if (!currentService) { toast('Inicie um serviço primeiro'); return; }
+    document.getElementById('signatureModal').classList.add('show');
+    requestAnimationFrame(() => {
+      initSignaturePad('tecnico');
+      initSignaturePad('cliente');
+    });
+  }
+
+  function initSignaturePad(which) {
+    const pad = sigPads[which];
+    const canvas = document.getElementById(which === 'tecnico' ? 'sigPadTecnico' : 'sigPadCliente');
+    if (!canvas) return;
+    pad.canvas = canvas;
+    pad.drawing = false;
+    pad.hasInk = false;
+    pad.lastX = 0;
+    pad.lastY = 0;
+
+    const rect = canvas.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(rect.width * ratio));
+    canvas.height = Math.max(1, Math.round(rect.height * ratio));
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#111111';
+    pad.ctx = ctx;
+    canvas.classList.remove('signed');
+
+    if (!canvas.dataset.bound) {
+      canvas.dataset.bound = '1';
+      canvas.addEventListener('pointerdown', e => startStroke(which, e));
+      canvas.addEventListener('pointermove', e => moveStroke(which, e));
+      canvas.addEventListener('pointerup', e => endStroke(which, e));
+      canvas.addEventListener('pointercancel', e => endStroke(which, e));
+    }
+
+    const saved = signatures[which];
+    if (saved) {
+      const img = new Image();
+      img.onload = () => {
+        const w = rect.width;
+        const h = rect.height;
+        const scale = Math.min(w / img.width, h / img.height);
+        const dw = img.width * scale;
+        const dh = img.height * scale;
+        ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+        pad.hasInk = true;
+        canvas.classList.add('signed');
+      };
+      img.src = saved;
+    }
+  }
+
+  function padPoint(pad, e) {
+    const rect = pad.canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function startStroke(which, e) {
+    const pad = sigPads[which];
+    if (!pad.ctx) return;
+    e.preventDefault();
+    pad.drawing = true;
+    const p = padPoint(pad, e);
+    pad.lastX = p.x;
+    pad.lastY = p.y;
+    try { pad.canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    pad.ctx.beginPath();
+    pad.ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2);
+    pad.ctx.fillStyle = '#111111';
+    pad.ctx.fill();
+    pad.hasInk = true;
+    pad.canvas.classList.add('signed');
+  }
+
+  function moveStroke(which, e) {
+    const pad = sigPads[which];
+    if (!pad.drawing || !pad.ctx) return;
+    e.preventDefault();
+    const p = padPoint(pad, e);
+    pad.ctx.beginPath();
+    pad.ctx.moveTo(pad.lastX, pad.lastY);
+    pad.ctx.lineTo(p.x, p.y);
+    pad.ctx.stroke();
+    pad.lastX = p.x;
+    pad.lastY = p.y;
+  }
+
+  function endStroke(which, e) {
+    const pad = sigPads[which];
+    if (!pad.drawing) return;
+    pad.drawing = false;
+    try { pad.canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+  }
+
+  function clearSignature(which) {
+    const pad = sigPads[which];
+    if (!pad.ctx) return;
+    const rect = pad.canvas.getBoundingClientRect();
+    pad.ctx.clearRect(0, 0, rect.width, rect.height);
+    pad.hasInk = false;
+    pad.canvas.classList.remove('signed');
+  }
+
+  async function saveSignatures() {
+    if (!currentService) { toast('Inicie um serviço primeiro'); return; }
+    signatures.tecnico = sigPads.tecnico.hasInk ? sigPads.tecnico.canvas.toDataURL('image/png') : null;
+    signatures.cliente = sigPads.cliente.hasInk ? sigPads.cliente.canvas.toDataURL('image/png') : null;
+    currentService.assinaturaTecnico = signatures.tecnico;
+    currentService.assinaturaCliente = signatures.cliente;
+    await DB.put('servicos', currentService);
+    await DB.setConfig('currentService', currentService);
+    const statusEl = document.getElementById('sigStatus');
+    if (statusEl) {
+      const hasSig = !!(signatures.tecnico || signatures.cliente);
+      statusEl.textContent = hasSig ? 'Assinaturas guardadas ✓' : 'Sem assinaturas registadas';
+      statusEl.style.color = hasSig ? 'var(--success)' : 'var(--text-secondary)';
+    }
+    closeModal('signatureModal');
+    toast('Assinaturas guardadas');
+  }
+
   // === FINALIZE SERVICE ===
   async function finalizeService() {
     if (!currentService || extintores.length === 0) { toast('Sem extintores para finalizar'); return; }
@@ -427,6 +566,7 @@ const App = (() => {
     const manut = extintores.filter(e => e.estado === 'manutencao').length;
     const carga = extintores.filter(e => e.estado === 'carregamento').length;
     const rej = extintores.filter(e => e.estado === 'rejeitado').length;
+    const hasSig = !!(signatures.tecnico || signatures.cliente);
 
     const content = document.getElementById('finalizeContent');
     content.innerHTML = `
@@ -440,6 +580,10 @@ const App = (() => {
         <div class="finalize-item"><div class="fi-value" style="color:#e65100">${carga}</div><div class="fi-label">Carregamento</div></div>
         <div class="finalize-item"><div class="fi-value" style="color:var(--danger)">${rej}</div><div class="fi-label">Rejeitados</div></div>
       </div>
+      <div class="btn-group" style="margin-top:8px">
+        <button class="btn btn-outline btn-block" onclick="App.openSignatureModal()">✍️ ASSINATURAS</button>
+      </div>
+      <p id="sigStatus" style="font-size:0.78rem;color:${hasSig ? 'var(--success)' : 'var(--text-secondary)'};text-align:center;margin-top:6px">${hasSig ? 'Assinaturas guardadas ✓' : 'Sem assinaturas registadas'}</p>
       <div class="btn-group">
         <button class="btn btn-primary" onclick="App.finalizeAndClose()">GUARDAR E FECHAR</button>
       </div>
@@ -463,6 +607,7 @@ const App = (() => {
     }
     currentService = null;
     extintores = [];
+    signatures = { tecnico: null, cliente: null };
     await DB.setConfig('currentService', null);
     document.getElementById('finalizeModal').classList.remove('show');
     document.getElementById('extFormWrap').style.display = 'none';
@@ -481,6 +626,7 @@ const App = (() => {
     }
     currentService = null;
     extintores = [];
+    signatures = { tecnico: null, cliente: null };
     await DB.setConfig('currentService', null);
     document.getElementById('finalizeModal').classList.remove('show');
     document.getElementById('extFormWrap').style.display = 'none';
@@ -700,6 +846,23 @@ const App = (() => {
     const win = preOpened || openReportWindow();
     const data = await getExportData();
     if (!data) { if (win) win.close(); return; }
+    const sigPage = (data.assinaturaTecnico || data.assinaturaCliente) ? `
+      <div class="sign-page">
+        <div class="sign-page-title">ASSINATURAS</div>
+        <div class="sign-page-sub">Declaro que o servico descrito neste relatorio foi executado e aceite.</div>
+        <div class="sign-area">
+          <div class="sign-box">
+            ${data.assinaturaTecnico ? `<img src="${data.assinaturaTecnico}" alt="Assinatura do Tecnico">` : '<div class="sign-space"></div>'}
+            <div class="sign-line"></div>
+            <div class="sign-label">Assinatura do Tecnico</div>
+          </div>
+          <div class="sign-box">
+            ${data.assinaturaCliente ? `<img src="${data.assinaturaCliente}" alt="Assinatura do Cliente">` : '<div class="sign-space"></div>'}
+            <div class="sign-line"></div>
+            <div class="sign-label">Assinatura do Cliente</div>
+          </div>
+        </div>
+      </div>` : '';
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <title>Relatório - ${data.cliente}</title>
@@ -722,6 +885,15 @@ const App = (() => {
         .actions{display:flex;gap:10px;margin:0 0 16px}
         .actions button{flex:1;padding:12px;border:none;border-radius:8px;background:#d32f2f;color:#fff;font-size:14px;font-weight:700}
         .actions button.secondary{background:#e0e0e0;color:#333}
+        .sign-page{page-break-before:always;break-before:page;min-height:245mm;display:flex;flex-direction:column;padding-top:10px}
+        .sign-page-title{font-size:14px;color:#d32f2f;font-weight:700;margin-bottom:2px}
+        .sign-page-sub{font-size:11px;color:#666}
+        .sign-area{margin-top:auto;display:flex;justify-content:flex-end;align-items:flex-end;gap:16px;padding-bottom:6mm}
+        .sign-box{width:62mm;text-align:center}
+        .sign-box img{display:block;max-width:100%;max-height:30mm;margin:0 auto}
+        .sign-space{height:30mm}
+        .sign-line{border-top:1px solid #333;margin-top:2px}
+        .sign-label{font-size:10px;margin-top:4px;color:#333}
         @media print{body{padding:10px}.actions{display:none}}
       </style></head><body>
       <div class="actions">
@@ -754,6 +926,7 @@ const App = (() => {
         </table>
       </div>
       <div class="footer">Gerado em ${new Date().toLocaleString('pt-PT')} — Manutencao de Extintores</div>
+      ${sigPage}
       <script>window.onload=function(){setTimeout(function(){try{window.print()}catch(e){}},500)}<\/script>
     </body></html>`;
     if (win) {
@@ -850,6 +1023,8 @@ const App = (() => {
       manut: exts.filter(e => e.estado === 'manutencao').length,
       carga: exts.filter(e => e.estado === 'carregamento').length,
       rej: exts.filter(e => e.estado === 'rejeitado').length,
+      assinaturaTecnico: svc?.assinaturaTecnico || null,
+      assinaturaCliente: svc?.assinaturaCliente || null,
       extintores: exts
     };
   }
@@ -977,6 +1152,7 @@ const App = (() => {
       await DB.clearAll();
       currentService = null;
       extintores = [];
+      signatures = { tecnico: null, cliente: null };
       hideServiceBanner();
       document.getElementById('extFormWrap').style.display = 'none';
       document.getElementById('serviceFormCard').style.display = '';
@@ -1029,6 +1205,7 @@ const App = (() => {
     search, exportPDF, exportTXT, shareWhatsApp, exportBackup, importBackup,
     clearAllData, confirmYes, confirmNo, closeModal,
     continueService, abandonService, selectAutocomplete,
+    openSignatureModal, clearSignature, saveSignatures,
     showHistoryDetail, backToHistory,
     exportPDFFromHistory, exportTXTFromHistory, shareWhatsAppFromHistory,
     editExtFromHistory

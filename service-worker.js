@@ -1,4 +1,4 @@
-const CACHE_NAME = 'manutext-v3';
+const CACHE_NAME = 'manutext-v4';
 const ASSETS = [
   './',
   './index.html',
